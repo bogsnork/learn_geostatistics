@@ -1,0 +1,110 @@
+---
+title: "gstat exercise"
+output: html_notebook
+---
+
+from: 
+https://cran.r-project.org/web/packages/gstat/vignettes/gstat.pdf
+https://github.com/r-spatial/gstat/blob/master/vignettes/gstat.Rnw
+
+###3 Spatial data frames
+As an example, we will look at the meuse data set, which is a regular data frame
+that comes with package gstat (remove the 88 from the colour strings to make
+a plot without alpha transparency on windows or X11):
+
+```{r}
+library(sp)
+data(meuse)
+class(meuse)
+names(meuse)
+coordinates(meuse) = ~x+y
+class(meuse)
+summary(meuse)
+coordinates(meuse)[1:5,]
+bubble(meuse, "zinc", 
+	col=c("#00ff0088", "#00ff0088"), main = "zinc concentrations (ppm)")
+```
+
+###Spatial data on a regular grid
+
+```{r}
+data(meuse.grid)
+summary(meuse.grid)
+class(meuse.grid)
+coordinates(meuse.grid) = ~x+y
+class(meuse.grid)
+gridded(meuse.grid) = TRUE
+class(meuse.grid)
+image(meuse.grid["dist"])
+title("distance to river (red = 0)")
+library(gstat)
+zinc.idw = idw(zinc~1, meuse, meuse.grid)
+class(zinc.idw)
+spplot(zinc.idw["var1.pred"], main = "zinc inverse distance weighted interpolations")
+```
+
+If you compare the bubble plot of zinc measurements with the map with
+distances to the river, it becomes evident that the larger concentrations
+are measured at locations close to the river. This relationship can be
+linearized by log-transforming the zinc concentrations, and taking the
+square root of distance to the river:
+
+```{r}
+plot(log(zinc)~sqrt(dist), meuse)
+abline(lm(log(zinc)~sqrt(dist), meuse))
+```
+
+
+
+
+
+
+###5 Variograms
+Variograms are calculated using the function variogram, which takes a formula
+as its first argument: log(zinc)~1 means that we assume a constant trend for
+the variable log(zinc).
+
+```{r}
+library(gstat)
+lzn.vgm = variogram(log(zinc)~1, meuse)
+lzn.vgm
+lzn.fit = fit.variogram(lzn.vgm, model = vgm(1, "Sph", 900, 1))
+lzn.fit
+plot(lzn.vgm, lzn.fit)
+```
+
+
+Instead of the constant mean, denoted by \verb|~1|, we can specify a
+mean function, e.g. using \verb|~sqrt(dist)| as a predictor variable:
+
+```{r}
+lznr.vgm = variogram(log(zinc)~sqrt(dist), meuse)
+lznr.fit = fit.variogram(lznr.vgm, model = vgm(1, "Exp", 300, 1))
+lznr.fit
+plot(lznr.vgm, lznr.fit)
+```
+
+
+In this case, the variogram of residuals with respect to a fitted mean
+function are shown. Residuals were calculated using ordinary least
+squares.
+
+###Kriging
+
+```{r}
+lzn.kriged = krige(formula = log(zinc)~1, meuse, meuse.grid, model = lzn.fit)
+spplot(lzn.kriged["var1.pred"])
+spplot(lzn.kriged)
+```
+
+
+
+
+
+
+
+
+
+
+
+
